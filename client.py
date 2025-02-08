@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import time
+import sys
 from base64 import b64encode, b64decode
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
@@ -10,9 +11,25 @@ from Crypto.Hash import SHA256
 from websocket import create_connection
 
 # === Configuration ===
-SERVER_IP_URL = "http://enlighttheworld.altervista.org/ip/ip.txt"  # Placeholder for actual server IP source
+SERVER_IP_URL = "enlighttheworld.altervista.org/ip/ip.txt"  # Placeholder for actual server IP source
 SERVER_PORT = 81
 LOCAL_DATA_FILE = "client_data.json"
+
+# Verbosity level (default is 0, for no verbosity)
+VERBOSITY_LEVEL = 0
+
+def set_verbosity_level():
+    global VERBOSITY_LEVEL
+    if len(sys.argv) > 1 and sys.argv[1] == "-v":
+        VERBOSITY_LEVEL = 1
+    if len(sys.argv) > 2 and sys.argv[2] == "-v":
+        VERBOSITY_LEVEL = 2
+
+# === Logging Function ===
+def log(message, level=1):
+    """Logs messages based on verbosity level"""
+    if VERBOSITY_LEVEL >= level:
+        print(message)
 
 # === RSA Key Management ===
 def generate_rsa_keypair():
@@ -55,19 +72,20 @@ def register(phone_number):
         "phone_number": phone_number,
         "public_key": public_key.decode()
     }
+    log(f"[*] Registering with phone number {phone_number}", level=2)
     response = requests.post(f"{BASE_URL}/register", json=payload)
     if response.status_code == 200:
         save_keys(phone_number, private_key, public_key)
-        print("[✔] Registration successful.")
+        log(f"[✔] Registration successful for {phone_number}.", level=1)
     else:
-        print("[!] Registration failed:", response.json()["message"])
+        log(f"[!] Registration failed: {response.json()['message']}", level=1)
 
 # === Login (Challenge-Response Authentication) ===
 def login(phone_number, private_key, public_key):
-    print("[*] Attempting login...")
+    log(f"[*] Attempting login for {phone_number}...", level=2)
     response = requests.post(f"{BASE_URL}/login", json={"phone_number": phone_number})
     if response.status_code != 200:
-        print("[!] Login failed:", response.json()["message"])
+        log(f"[!] Login failed: {response.json()['message']}", level=1)
         return False
 
     data = response.json()
@@ -78,8 +96,9 @@ def login(phone_number, private_key, public_key):
     h = SHA256.new(encrypted_challenge)
     try:
         pkcs1_15.new(SERVER_PUBLIC_KEY).verify(h, server_signature)
+        log("[✔] Server signature verified.", level=2)
     except (ValueError, TypeError):
-        print("[!] Server signature verification failed.")
+        log("[!] Server signature verification failed.", level=1)
         return False
 
     # Decrypt challenge
@@ -103,19 +122,20 @@ def login(phone_number, private_key, public_key):
 
     verify_response = requests.post(f"{BASE_URL}/verify", json=verify_payload)
     if verify_response.status_code == 200:
-        print("[✔] Authentication successful!")
+        log(f"[✔] Authentication successful for {phone_number}.", level=1)
         return True
     else:
-        print("[!] Authentication failed:", verify_response.json()["message"])
+        log(f"[!] Authentication failed: {verify_response.json()['message']}", level=1)
         return False
 
 # === Messaging ===
 def get_recipient_public_key(recipient_phone):
+    log(f"[*] Requesting public key for {recipient_phone}", level=2)
     response = requests.post(f"{BASE_URL}/get-public-key", json={"phone_number": recipient_phone})
     if response.status_code == 200:
         return RSA.import_key(response.json()["public_key"])
     else:
-        print("[!] Recipient public key not found.")
+        log(f"[!] Recipient public key not found for {recipient_phone}.", level=1)
         return None
 
 def send_message(sender_phone, recipient_phone, message, private_key):
@@ -138,14 +158,16 @@ def send_message(sender_phone, recipient_phone, message, private_key):
         "signature": b64encode(signature).decode()
     }
 
+    log(f"[*] Sending message to {recipient_phone}", level=2)
     response = requests.post(f"{BASE_URL}/send-message", json=payload)
     if response.status_code == 200:
-        print("[✔] Message sent successfully.")
+        log("[✔] Message sent successfully.", level=1)
     else:
-        print("[!] Failed to send message.")
+        log(f"[!] Failed to send message: {response.json()['message']}", level=1)
 
 # === Receiving Messages ===
 def receive_messages(phone_number, private_key):
+    log("[*] Checking for new messages...", level=2)
     response = requests.post(f"{BASE_URL}/get-messages", json={"phone_number": phone_number})
     if response.status_code == 200:
         messages = response.json().get("messages", [])
@@ -158,18 +180,20 @@ def receive_messages(phone_number, private_key):
             h = SHA256.new(encrypted_message)
             try:
                 pkcs1_15.new(sender_public_key).verify(h, signature)
-                print(f"[✔] Message from {sender} verified.")
+                log(f"[✔] Message from {sender} verified.", level=2)
             except (ValueError, TypeError):
-                print(f"[!] Message from {sender} failed verification.")
+                log(f"[!] Message from {sender} failed verification.", level=1)
                 continue
 
             # Decrypt the message
             cipher = PKCS1_OAEP.new(private_key)
             decrypted_message = cipher.decrypt(encrypted_message)
-            print(f"[📩] Message from {sender}: {decrypted_message.decode()}")
+            log(f"[📩] Message from {sender}: {decrypted_message.decode()}", level=1)
 
 # === Main Client Workflow ===
 def main():
+    set_verbosity_level()
+
     phone_number, private_key, public_key = load_keys()
 
     if not phone_number:
@@ -191,7 +215,7 @@ def main():
             elif choice == "3":
                 break
             else:
-                print("[!] Invalid choice.")
+                log("[!] Invalid choice.", level=1)
 
 if __name__ == "__main__":
     main()
