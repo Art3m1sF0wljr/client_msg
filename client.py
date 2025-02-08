@@ -12,6 +12,7 @@ from websocket import create_connection
 
 # === Configuration ===
 SERVER_IP_URL = "https://enlighttheworld.altervista.org/ip/ip.txt"  # Placeholder for actual server IP source
+SERVER_PUBLIC_KEY_URL = "https://enlighttheworld.altervista.org/ip/public_key.txt"  # New endpoint for server's public key
 SERVER_PORT = 5002
 LOCAL_DATA_FILE = "client_data.json"
 
@@ -65,16 +66,25 @@ def get_server_ip():
 SERVER_IP = get_server_ip()
 BASE_URL = f"http://{SERVER_IP}:{SERVER_PORT}"
 
-# Retrieve server public key from a dedicated endpoint or server-side file (e.g., stored in a file or fetched at startup)
+# === Server Public Key ===
 def get_server_public_key():
-    response = requests.get(f"{BASE_URL}/get-public-key")
-    if response.status_code == 200:
-        return RSA.import_key(response.text)
-    else:
-        log("[!] Failed to retrieve server's public key.", level=1)
+    try:
+        response = requests.get(SERVER_PUBLIC_KEY_URL)
+        if response.status_code == 200:
+            return RSA.import_key(response.text)
+        else:
+            log("[!] Failed to retrieve server's public key from the specified URL.", level=1)
+            return None
+    except Exception as e:
+        log(f"[!] Error retrieving server's public key: {e}", level=1)
         return None
 
 SERVER_PUBLIC_KEY = get_server_public_key()
+
+# Check if the server's public key was successfully retrieved
+if SERVER_PUBLIC_KEY is None:
+    log("[!] Could not retrieve the server's public key. Exiting.", level=1)
+    sys.exit(1)
 
 # === Registration ===
 def register(phone_number):
