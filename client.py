@@ -65,6 +65,17 @@ def get_server_ip():
 SERVER_IP = get_server_ip()
 BASE_URL = f"http://{SERVER_IP}:{SERVER_PORT}"
 
+# Retrieve server public key from a dedicated endpoint or server-side file (e.g., stored in a file or fetched at startup)
+def get_server_public_key():
+    response = requests.get(f"{BASE_URL}/get-public-key")
+    if response.status_code == 200:
+        return RSA.import_key(response.text)
+    else:
+        log("[!] Failed to retrieve server's public key.", level=1)
+        return None
+
+SERVER_PUBLIC_KEY = get_server_public_key()
+
 # === Registration ===
 def register(phone_number):
     private_key, public_key = generate_rsa_keypair()
@@ -101,7 +112,7 @@ def login(phone_number, private_key, public_key):
         log("[!] Server signature verification failed.", level=1)
         return False
 
-    # Decrypt challenge
+    # Decrypt challenge using client's private key
     cipher = PKCS1_OAEP.new(private_key)
     decrypted_challenge = cipher.decrypt(encrypted_challenge)
 
@@ -109,7 +120,7 @@ def login(phone_number, private_key, public_key):
     cipher_server = PKCS1_OAEP.new(SERVER_PUBLIC_KEY)
     encrypted_response = cipher_server.encrypt(decrypted_challenge)
 
-    # Sign the response
+    # Sign the response using client's private key
     h_response = SHA256.new(decrypted_challenge)
     signature = pkcs1_15.new(private_key).sign(h_response)
 
