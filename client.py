@@ -12,7 +12,7 @@ from websocket import create_connection
 
 # === Configuration ===
 SERVER_IP_URL = "enlighttheworld.altervista.org/ip/ip.txt"  # Placeholder for actual server IP source
-SERVER_PORT = 81
+SERVER_PORT = 5002
 LOCAL_DATA_FILE = "client_data.json"
 
 # Verbosity level (default is 0, for no verbosity)
