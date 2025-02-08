@@ -11,7 +11,7 @@ from websocket import create_connection
 
 # === Configuration ===
 SERVER_IP_URL = "http://enlighttheworld.altervista.org/ip/ip.txt"  # Placeholder for actual server IP source
-SERVER_PORT = 42069
+SERVER_PORT = 69
 LOCAL_DATA_FILE = "client_data.json"
 
 # === RSA Key Management ===
