@@ -168,16 +168,19 @@ def login(phone_number, private_key):
     response_hash = hash_data(encrypted_response)
 
     payload = {
-		"phone_number": b64encode(phone_number.encode()).decode(),  # Base64-encode the phone number
-		"encrypted_response": b64encode(encrypted_response).decode(),
-		"signature": b64encode(signature).decode(),
-		"hash": response_hash
-	}
+        "phone_number": b64encode(phone_number.encode()).decode(),
+        "encrypted_response": b64encode(encrypted_response).decode(),
+        "signature": b64encode(signature).decode(),
+        "hash": response_hash
+    }
 
     log("[*] Sending challenge response...", level=2)
     verify_response = requests.post(f"{BASE_URL}/verify", json=payload)
     if verify_response.status_code == 200:
+        response_data = verify_response.json()
         log(f"[✔] Authentication successful for {phone_number}.", level=1)
+        if response_data.get("undelivered_count", 0) > 0:
+            log(f"[📩] You have {response_data['undelivered_count']} new messages.", level=1)
         return True
     else:
         log(f"[!] Authentication failed: {verify_response.text}", level=1)
