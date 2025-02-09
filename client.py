@@ -10,7 +10,7 @@ from Crypto.Hash import SHA256
 
 # === Configuration ===
 SERVER_IP_URL = "https://enlighttheworld.altervista.org/ip/ip.txt"
-SERVER_PORT = 5002
+SERVER_PORT = 21
 LOCAL_DATA_FILE = "client_data.json"
 
 # Verbosity Level
