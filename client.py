@@ -163,8 +163,8 @@ def login(phone_number, private_key):
         return False
 
 # === Messaging (Send/Receive) ===
-def send_message(recipient_phone, message, private_key):
-    log(f"[*] Sending message to {recipient_phone}...", level=2)
+def send_message(sender_phone, recipient_phone, message, private_key):
+    log(f"[*] Sending message from {sender_phone} to {recipient_phone}...", level=2)
 
     # Encrypt the message
     cipher = PKCS1_OAEP.new(SERVER_PUBLIC_KEY)
@@ -175,11 +175,12 @@ def send_message(recipient_phone, message, private_key):
     signature = pkcs1_15.new(private_key).sign(message_hash)
 
     payload = {
-		"phone_number": b64encode(phone_number.encode()).decode(),  # Base64-encode the phone number
-		"encrypted_response": b64encode(encrypted_response).decode(),
-		"signature": b64encode(signature).decode(),
-		"hash": response_hash
-	}
+        "sender_phone": b64encode(sender_phone.encode()).decode(),  # Base64-encode the sender's phone number
+        "recipient_phone": b64encode(recipient_phone.encode()).decode(),  # Base64-encode the recipient's phone number
+        "encrypted_message": b64encode(encrypted_message).decode(),
+        "signature": b64encode(signature).decode(),
+        "hash": hash_data(encrypted_message)
+    }
 
     response = requests.post(f"{BASE_URL}/send-message", json=payload)
     if response.status_code == 200:
@@ -238,7 +239,7 @@ def main():
             if choice == "1":
                 recipient = input("Recipient's phone number: ")
                 message = input("Enter your message: ")
-                send_message(recipient, message, private_key)
+                send_message(phone_number, recipient, message, private_key)  # Pass phone_number as the sender
             elif choice == "2":
                 receive_messages(phone_number, private_key)
             elif choice == "3":
@@ -248,6 +249,6 @@ def main():
                 log("[!] Invalid option selected.", level=1)
     else:
         log("[!] Login failed.", level=1)
-
+		
 if __name__ == "__main__":
     main()
