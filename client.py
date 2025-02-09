@@ -77,6 +77,8 @@ if SERVER_PUBLIC_KEY is None:
 # === Helper Functions ===
 def hash_data(data):
     """Returns SHA-256 hash of the provided data."""
+    if isinstance(data, str):
+        data = data.encode()  # Encode only if the data is a string
     h = SHA256.new(data)
     return b64encode(h.digest()).decode()
 
@@ -170,13 +172,17 @@ def send_message(sender_phone, recipient_phone, message, private_key):
     cipher = PKCS1_OAEP.new(SERVER_PUBLIC_KEY)
     encrypted_message = cipher.encrypt(message.encode())
 
+    # Log the encrypted message and its hash
+    log(f"[*] Encrypted message: {b64encode(encrypted_message).decode()}", level=2)
+    log(f"[*] Computed hash: {hash_data(encrypted_message)}", level=2)
+
     # Sign the encrypted message
     message_hash = SHA256.new(encrypted_message)
     signature = pkcs1_15.new(private_key).sign(message_hash)
 
     payload = {
-        "sender_phone": b64encode(sender_phone.encode()).decode(),  # Base64-encode the sender's phone number
-        "recipient_phone": b64encode(recipient_phone.encode()).decode(),  # Base64-encode the recipient's phone number
+        "sender_phone": b64encode(sender_phone.encode()).decode(),
+        "recipient_phone": b64encode(recipient_phone.encode()).decode(),
         "encrypted_message": b64encode(encrypted_message).decode(),
         "signature": b64encode(signature).decode(),
         "hash": hash_data(encrypted_message)
