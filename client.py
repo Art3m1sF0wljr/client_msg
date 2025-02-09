@@ -57,6 +57,15 @@ def get_server_ip():
 SERVER_IP = get_server_ip()
 BASE_URL = f"http://{SERVER_IP}:{SERVER_PORT}"
 
+def get_recipient_public_key(recipient_phone):
+    log(f"[*] Requesting public key for {recipient_phone}", level=2)
+    response = requests.post(f"{BASE_URL}/get-public-key", json={"phone_number": recipient_phone})
+    if response.status_code == 200:
+        return RSA.import_key(response.json()["public_key"])
+    else:
+        log(f"[!] Recipient public key not found for {recipient_phone}.", level=1)
+        return None
+
 def get_server_public_key():
     try:
         response = requests.get(f"{BASE_URL}/get-public-key")
@@ -201,18 +210,27 @@ def receive_messages(phone_number, private_key):
     if response.status_code == 200:
         messages = response.json().get("messages", [])
         for msg in messages:
-            encrypted_message = b64decode(msg["encrypted_message"])
-            signature = b64decode(msg["signature"])
-            received_hash = msg.get("hash")
+            # Unpack the tuple
+            sender, encrypted_message, signature, msg_hash = msg
+
+            # Decode Base64 fields
+            encrypted_message = b64decode(encrypted_message)
+            signature = b64decode(signature)
 
             # Verify message integrity
-            if received_hash != hash_data(encrypted_message):
+            computed_hash = hash_data(encrypted_message)
+            if msg_hash != computed_hash:
                 log("[!] Message hash mismatch. Possible tampering!", level=1)
                 continue
 
             # Verify signature
+            sender_public_key = get_recipient_public_key(sender)
+            if not sender_public_key:
+                log(f"[!] Sender public key not found for {sender}.", level=1)
+                continue
+
             try:
-                pkcs1_15.new(SERVER_PUBLIC_KEY).verify(SHA256.new(encrypted_message), signature)
+                pkcs1_15.new(sender_public_key).verify(SHA256.new(encrypted_message), signature)
                 log("[✔] Message signature verified.", level=2)
             except (ValueError, TypeError):
                 log("[!] Signature verification failed.", level=1)
@@ -220,8 +238,11 @@ def receive_messages(phone_number, private_key):
 
             # Decrypt message
             cipher = PKCS1_OAEP.new(private_key)
-            decrypted_message = cipher.decrypt(encrypted_message)
-            log(f"[📩] New message: {decrypted_message.decode()}", level=1)
+            try:
+                decrypted_message = cipher.decrypt(encrypted_message).decode()
+                log(f"[📩] New message from {sender}: {decrypted_message}", level=1)
+            except Exception as e:
+                log(f"[!] Decryption failed: {e}", level=1)
     else:
         log(f"[!] Failed to retrieve messages: {response.text}", level=1)
 
