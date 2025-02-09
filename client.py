@@ -187,15 +187,21 @@ def login(phone_number, private_key):
 def send_message(sender_phone, recipient_phone, message, private_key):
     log(f"[*] Sending message from {sender_phone} to {recipient_phone}...", level=2)
 
-    # Encrypt the message
-    cipher = PKCS1_OAEP.new(SERVER_PUBLIC_KEY)
+    # Get the recipient's public key
+    recipient_public_key = get_recipient_public_key(recipient_phone)
+    if not recipient_public_key:
+        log(f"[!] Recipient public key not found for {recipient_phone}.", level=1)
+        return
+
+    # Encrypt the message using the recipient's public key
+    cipher = PKCS1_OAEP.new(recipient_public_key)
     encrypted_message = cipher.encrypt(message.encode())
 
     # Log the encrypted message and its hash
     log(f"[*] Encrypted message: {b64encode(encrypted_message).decode()}", level=2)
     log(f"[*] Computed hash: {hash_data(encrypted_message)}", level=2)
 
-    # Sign the encrypted message
+    # Sign the encrypted message using the sender's private key
     message_hash = SHA256.new(encrypted_message)
     signature = pkcs1_15.new(private_key).sign(message_hash)
 
@@ -246,7 +252,7 @@ def receive_messages(phone_number, private_key):
                 log("[!] Signature verification failed.", level=1)
                 continue
 
-            # Decrypt message
+            # Decrypt message using the recipient's private key
             cipher = PKCS1_OAEP.new(private_key)
             try:
                 decrypted_message = cipher.decrypt(encrypted_message).decode()
