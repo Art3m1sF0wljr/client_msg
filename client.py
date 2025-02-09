@@ -59,16 +59,25 @@ BASE_URL = f"http://{SERVER_IP}:{SERVER_PORT}"
 
 def get_recipient_public_key(recipient_phone):
     log(f"[*] Requesting public key for {recipient_phone}", level=2)
-    response = requests.post(f"{BASE_URL}/get-public-key", json={"phone_number": recipient_phone})
+    payload = {"phone_number": recipient_phone}
+    log(f"[*] Sending payload: {payload}", level=2)
+    response = requests.post(f"{BASE_URL}/get-public-key", json=payload)
+    log(f"[*] Response status code: {response.status_code}", level=2)
+    log(f"[*] Response content: {response.text}", level=2)
     if response.status_code == 200:
-        return RSA.import_key(response.json()["public_key"])
+        try:
+            return RSA.import_key(response.json()["public_key"])
+        except (KeyError, ValueError) as e:
+            log(f"[!] Error importing public key: {e}", level=1)
+            return None
     else:
-        log(f"[!] Recipient public key not found for {recipient_phone}.", level=1)
+        target = recipient_phone if recipient_phone else "server"
+        log(f"[!] Public key not found for {target}.", level=1)
         return None
-
+		
 def get_server_public_key():
     try:
-        response = requests.get(f"{BASE_URL}/get-public-key")
+        response = requests.get(f"{BASE_URL}/get-public-key")  # No phone_number argument
         if response.status_code == 200:
             return RSA.import_key(response.json()["public_key"])
         else:
@@ -77,6 +86,7 @@ def get_server_public_key():
     except Exception as e:
         log(f"[!] Error retrieving server's public key: {e}", level=1)
         return None
+
 
 SERVER_PUBLIC_KEY = get_server_public_key()
 if SERVER_PUBLIC_KEY is None:
